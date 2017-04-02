@@ -1,0 +1,8 @@
+appdirs
+lxml
+packaging
+pycrypto
+pycurl
+pyparsing
+requests
+six
