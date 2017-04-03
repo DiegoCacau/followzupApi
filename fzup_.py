@@ -1,17 +1,16 @@
 import base64
-import urllib.parse
-from Crypto.PublicKey import RSA
 import os
 import crypto
-import requests
 from lxml import objectify
+import pycurl
+from io import BytesIO
 
 
 class fzup_: #idchannel#
-	fzup_channel  = ""  #idchannel#
+	fzup_channel  = "" #idchannel#
 	fzup_lastseq  = 0
 	fzup_pubkey   = ""
-	fzup_pubkey64 = ""  #key64#
+	fzup_pubkey64 = "" #key64#
 
 	def __init__(self):
 		self.fzup_pubkey = base64.b64decode(self.fzup_pubkey64).decode('ascii')
@@ -93,10 +92,11 @@ class fzup_: #idchannel#
 			fzup_frame3 = base64.b64encode(fzup_frame2)
 			fzup_key3 = base64.b64encode(fzup_key2)
 			
+			bound = crypto.openssl_random_pseudo_bytes(length=16)
 			
 			url = "http://www.followzup.com/wschannel"
 
-			boundary = "--------------------------12e6dd49634022e7"
+			boundary = "--------------------------"+bound
 			end = "\r\n"
 			agent = "wschannel: " + self.fzup_channel
 			data=boundary+end+'Content-Disposition: form-data; name="id"'+end+end+self.fzup_channel+ \
@@ -104,22 +104,21 @@ class fzup_: #idchannel#
 				boundary+end+'Content-Disposition: form-data; name="frame"'+end+end+fzup_frame3.decode('ascii')+end+boundary+"--"+end
 
 
-			import pycurl
-			from io import BytesIO
+			
 
 			c = pycurl.Curl()
 			c.setopt(pycurl.URL, url)
 			c.setopt(pycurl.USERAGENT, agent)
-			c.setopt(pycurl.HTTPHEADER, ["Content-Type:multipart/form-data; boundary=------------------------12e6dd49634022e7","Expect: 100-continue"])
+			c.setopt(pycurl.HTTPHEADER, ["Content-Type:multipart/form-data; boundary=------------------------"+bound,"Expect: 100-continue"])
 			c.setopt(pycurl.POST, 1)
 			c.setopt(pycurl.POSTFIELDS, data)
 			fout = BytesIO()
 			c.setopt(pycurl.WRITEDATA, fout)
 			c.perform()
-			response_data = fout.getvalue().decode('utf-8')
+			response_data = fout.getvalue()
 			
 
-			fzup_respxml = objectify.fromstring(response_data.encode())
+			fzup_respxml = objectify.fromstring(response_data)
 			fzup_retcode = fzup_respxml.retcode.text
 			fzup_retframe1 = fzup_respxml.retframe.text
 			
@@ -139,5 +138,4 @@ class fzup_: #idchannel#
 
 		return ( fzup_retcode, self.fzup_lastseq, fzup_retframe3)	
 
-	
 	

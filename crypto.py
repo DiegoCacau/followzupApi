@@ -2,6 +2,7 @@ import base64
 from Crypto.Cipher import AES, PKCS1_v1_5 
 from Crypto.PublicKey import RSA
 import os
+import sys
 
 
 def Message_padding(message):
@@ -57,5 +58,9 @@ def openssl_random_pseudo_bytes(length=24, charset="abcdefghijklmnopqrstuvwxyz01
 	random_bytes = os.urandom(length)
 
 	len_charset = len(charset)
-	indices = [int(len_charset * (ord(chr(byte)) / 256.0))  for byte in random_bytes]
-	return  "".join([charset[index] for index in indices])		
+	if sys.version_info[0] >= 3:
+		indices = [int(len_charset * (ord(chr(byte)) / 256.0))  for byte in random_bytes]
+		return  "".join([charset[index] for index in indices])  
+	else:   
+		indices = [int(len_charset * (ord(byte) / 256.0))  for byte in random_bytes]
+		return  "".join([charset[index] for index in indices])	

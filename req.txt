@@ -4,5 +4,4 @@ packaging
 pycrypto
 pycurl
 pyparsing
-requests
 six
