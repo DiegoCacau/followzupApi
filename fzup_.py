@@ -1,21 +1,117 @@
 import base64
 import os
-import crypto
 from lxml import objectify
 import pycurl
 from io import BytesIO
+from Crypto.Cipher import AES, PKCS1_v1_5 
+from Crypto.PublicKey import RSA
+import sys
+import subprocess
 
 
-class fzup_: #idchannel#
-	fzup_channel  = "" #idchannel#
+class fzup_:
+	fzup_channel  = ""
 	fzup_lastseq  = 0
 	fzup_pubkey   = ""
-	fzup_pubkey64 = "" #key64#
+	fzup_pubkey64 = ""
 
 	def __init__(self):
 		self.fzup_pubkey = base64.b64decode(self.fzup_pubkey64).decode('ascii')
 		
+	'''
+		Because of the lack of a Python function to decrypt data using RSA public
+		keys, it was necessary to install a PHP method to perform this function. 
+		To do this, the PHP OpenSSL extention must be enabled to be called by
+		the "decrypt" method available in this code.
+	'''	
+	def decrypt(self,fzup_encrypt64):
+		code = '''
+				<?php
+				function decrypt () {
+				    
+				    $pubKey="'''+self.fzup_pubkey64+'''";
+				    $fzup_encrypt64 = "'''+fzup_encrypt64+'''";
 
+				    $fzup_pubkey = base64_decode($pubKey);
+
+				    $fzup_encrypt = base64_decode($fzup_encrypt64);
+				    
+				    openssl_public_decrypt($fzup_encrypt, $fzup_decrypt, $fzup_pubkey);
+				    
+				    echo $fzup_decrypt;
+
+				}
+
+				return decrypt();
+				?>
+				'''
+		res = self.php(code)
+		
+		return(res[0].decode("utf-8").strip())
+
+	def Message_padding(self,message):
+		Message_length = len(message)
+
+		remainder = Message_length%16
+
+		if (remainder) !=0:
+			Padding_length = 16-remainder
+			message = message+" "*Padding_length
+ 		return message
+
+	def encrypt_(self,text, input_key, input_iv):
+		aes = AES.new(input_key, AES.MODE_CBC, input_iv)
+		cipher_text = ''
+		cipher_text = aes.encrypt(self.Message_padding(text))
+
+		return cipher_text
+
+
+	def decrypt_(self,enc, key,IV):
+		decobj = AES.new(key, AES.MODE_CBC, IV)
+		data = (decobj.decrypt((enc)))
+		return (str((data).decode()).strip("\x00"))
+
+
+	def openssl_public_encrypt(self,message,key):
+		k = key
+		key1 = RSA.importKey(key)
+		pkcs1CipherTmp = PKCS1_v1_5.new(key1)
+		encryptedString = pkcs1CipherTmp.encrypt(message.encode())
+
+		return encryptedString  
+
+
+	  	
+
+	def openssl_random_pseudo_bytes(self,length=24, charset="abcdefghijklmnopqrstuvwxyz0123456789"):
+		random_bytes = os.urandom(length)
+
+		len_charset = len(charset)
+		if sys.version_info[0] >= 3:
+			indices = [int(len_charset * (ord(chr(byte)) / 256.0))  for byte in random_bytes]
+			return  "".join([charset[index] for index in indices])  
+		else:   
+			indices = [int(len_charset * (ord(byte) / 256.0))  for byte in random_bytes]
+			return  "".join([charset[index] for index in indices])	
+
+
+
+	def php(self,code):
+		# open process
+		p = subprocess.Popen(['php'], stdout=subprocess.PIPE, stdin=subprocess.PIPE, stderr=subprocess.PIPE)
+
+		# read output
+		o = p.communicate(code.encode())
+
+		# kill process
+		try:
+			os.kill(p.pid, signal.SIGTERM)
+		except:
+			pass
+
+		return o	
+		
 
 	def submit(self,fzup_tab):
 		fzup_param={}
@@ -50,6 +146,7 @@ class fzup_: #idchannel#
 								
 
 		fzup_param["FZUP_MSGTEXT"] = base64.b64encode(fzup_param["FZUP_MSGTEXT"].encode('utf-8'))#.decode("utf-8")
+		
 		if len(fzup_param["FZUP_MSGURL"]) > 1:
 			fzup_param["FZUP_MSGURL"]  = base64.b64encode(fzup_param["FZUP_MSGURL"].encode('utf-8')).decode('ascii')#.decode("utf-8")
 		else:
@@ -58,7 +155,7 @@ class fzup_: #idchannel#
 
 		if(fzup_param["FZUP_COMMAND"] == "chck"):
 			fzup_xml = "<usr>" + fzup_param["FZUP_USER"] + "</usr>" + \
-				"<sub>" + fzup_param["FZUP_SUBSCODE"] + "</sub>"
+				"<sub>" + str(fzup_param["FZUP_SUBSCODE"]) + "</sub>"
 
 		elif (fzup_param["FZUP_COMMAND"] == "smsg"):
 			fzup_xml = "<usr>" + fzup_param["FZUP_USER"] + "</usr>" + \
@@ -86,13 +183,13 @@ class fzup_: #idchannel#
 			
 			iv = chr(0)*16
 			
-			fzup_key1 = crypto.openssl_random_pseudo_bytes()
-			fzup_frame2 = crypto.encrypt_(fzup_frame1, fzup_key1, iv)
-			fzup_key2 = crypto.openssl_public_encrypt(fzup_key1, self.fzup_pubkey)
+			fzup_key1 = self.openssl_random_pseudo_bytes()
+			fzup_frame2 = self.encrypt_(fzup_frame1, fzup_key1, iv)
+			fzup_key2 = self.openssl_public_encrypt(fzup_key1, self.fzup_pubkey)
 			fzup_frame3 = base64.b64encode(fzup_frame2)
 			fzup_key3 = base64.b64encode(fzup_key2)
 			
-			bound = crypto.openssl_random_pseudo_bytes(length=16)
+			bound = self.openssl_random_pseudo_bytes(length=16)
 			
 			url = "http://www.followzup.com/wschannel"
 
@@ -117,7 +214,6 @@ class fzup_: #idchannel#
 			c.perform()
 			response_data = fout.getvalue()
 			
-
 			fzup_respxml = objectify.fromstring(response_data)
 			fzup_retcode = fzup_respxml.retcode.text
 			fzup_retframe1 = fzup_respxml.retframe.text
@@ -127,8 +223,10 @@ class fzup_: #idchannel#
 				fzup_retframe1 = ""
 			
 			fzup_retframe2 = base64.b64decode(fzup_retframe1.encode())
-			fzup_retframe3 = crypto.decrypt_(fzup_retframe2,fzup_key1,iv)			
-			fzup_retframe4 = objectify.fromstring(fzup_retframe3.encode())
+			fzup_retframe3 = self.decrypt_(fzup_retframe2,fzup_key1,iv)
+			
+			if len(fzup_retframe3)>0:			
+				fzup_retframe4 = objectify.fromstring(fzup_retframe3.encode())
 
 			if (fzup_retcode == "6101" ): 
 				self.fzup_lastseq = fzup_retframe4.seq
